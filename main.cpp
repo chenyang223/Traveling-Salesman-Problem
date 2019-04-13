@@ -20,7 +20,6 @@ int main(int argc, char **argv)
     double running_time = double(t_end - t_begin) / CLOCKS_PER_SEC;
     cout << "\n"
          << "The running time is:  " << running_time << endl;
-    //system("pause");
     return 0;
 }
 

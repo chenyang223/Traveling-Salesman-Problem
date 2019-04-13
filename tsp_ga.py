@@ -52,13 +52,13 @@ class TspGa(object):
         # self.plot_cost_num_salesman_cs(num_salesman_array)
         # self.plot_cost_num_salesman_ct(num_salesman_array)
 
-        # for num_salesman in num_salesman_array:
-        #     if num_salesman == 1:
-        #         self.generate_kmeans_cluster(city_coord, num_salesman)
-        #     else:
-        #         self.generate_lattice_cluster_2row(city_coord, num_salesman)
-        #     os.system('D:/Research/TSP/TSP_GA/Debug/TSP_GA.exe ' +
-        #               self.data_path + ' ' + self.data_file)
+        for num_salesman in num_salesman_array:
+            if num_salesman == 1:
+                self.generate_kmeans_cluster(city_coord, num_salesman)
+            else:
+                self.generate_lattice_cluster_2row(city_coord, num_salesman)
+            os.system('./main' +
+                      self.data_path + ' ' + self.data_file)
 
         # np.savetxt(self.data_path + 'length.txt', np.array(path_length_list))
 
