@@ -1,48 +1,35 @@
 //no depot mtsp
 
-#include "ga.h"
-
-typedef struct
-{
-    double length;
-    vector<int> path;
-} TspChromosome;
-
-const int kBaseNumInGroup = 2;
-const double kDoubleLargeNumber = DBL_MAX;
-const int kBaseGaSteps = 18;
-
-static vector<vector<int>> ReadKMeansCluster();
-static void InitializeGroup(CityNetwork &network, vector<TspChromosome> &group,
-                            vector<vector<int>>::iterator base_path);
-static void PrintMtspResult(vector<vector<int>> v, double length);
-static void OutputBestSolution(vector<vector<int>> v, double length, int num_salesman);
-static void OutputBestInGeneration(int num_salesman);
-static vector<int>::iterator FindGreedy(CityNetwork &network,
-                                        vector<int>::iterator begin,
-                                        vector<int>::iterator end, int start_point);
-static void GAMain(CityNetwork &network, vector<TspChromosome> &group);
-static bool LKImprovePath(CityNetwork &network, vector<int> path, int depth);
-static void LocalSearchPath(CityNetwork &network, vector<int> &path);
-static double CalculatePathLength(CityNetwork &network, vector<int> path);
-static vector<int> DPXCrossover(CityNetwork &network, vector<int> father, vector<int> mother);
-static vector<int> &GetLKImprovedPath();
-vector<double> &GetBestAtOneGeneration();
-int &GetNumInGroup();
-int &GetGASteps();
+#include "mtsp_kmeans_ga.h"
+#include "utils.h"
+#include <iostream>
+#include <cstdlib>
+#include <ctime>
+#include <algorithm>
+#include <vector>
+#include <cmath>
+#include <random>
+#include <chrono>
+#include <iterator>
+#include <iomanip>
+#include <sstream>
+#include <fstream>
+#include <cfloat>
 
 void MtspKmeansGA()
 {
     CityNetwork network;
     network = ConstructNetwork();
-    //PrintNetwork(network);
+//    PrintNetwork(network);
     vector<vector<int>> kmeans_cluster;
     kmeans_cluster = ReadKMeansCluster();
     int num_salesman = kmeans_cluster.size();
     GetNumInGroup() = kBaseNumInGroup * num_salesman;
     GetGASteps() = kBaseGaSteps * num_salesman;
     vector<vector<int>> path_result;
+    vector<vector<int>> init_path_result;
     double total_path_length = 0.0;
+    double init_total_path_length = 0.0;
 
     time_t time1 = clock();
     time_t time2 = clock();
@@ -56,6 +43,8 @@ void MtspKmeansGA()
              << "/" << num_salesman << endl;
         vector<TspChromosome> group(GetNumInGroup());
         InitializeGroup(network, group, i);
+        init_path_result.push_back(group.begin()->path);
+        init_total_path_length += group.begin()->length;
         for (auto j = group.begin();
              j != group.end(); j++)
         {
@@ -80,10 +69,11 @@ void MtspKmeansGA()
 
     PrintMtspResult(path_result, total_path_length);
     OutputBestSolution(path_result, total_path_length, num_salesman);
-    OutputBestInGeneration(num_salesman);
+    OutputInitSolution(init_path_result, init_total_path_length, num_salesman);
+//    OutputBestInGeneration(num_salesman);
 }
 
-static void GAMain(CityNetwork &network, vector<TspChromosome> &group)
+void GAMain(CityNetwork &network, vector<TspChromosome> &group)
 {
     struct MySort
     {
@@ -155,13 +145,50 @@ static void GAMain(CityNetwork &network, vector<TspChromosome> &group)
     cout << "local search time : " << local_search_time << "\n";
 }
 
+vector<vector<int>> ReadKMeansCluster()
+{
+    ifstream read;
+    read.open(GetDataPath() + "clusters_" + GetDataFile());
+    if (!read.is_open())
+    {
+        cout << "fail to open file." << endl;
+    }
+    string s;
+    stringstream stream;
+    int i;
+    vector<int> vec;
+    vector<vector<int>> kmeans_clusters;
+
+    do
+    {
+        read >> s;
+    } while (s != "Cluster:");
+    read >> s;
+    do
+    {
+        do
+        {
+            stream.clear();
+            stream << s;
+            stream >> i;
+            vec.push_back(i);
+            read >> s;
+        } while (s != "Cluster:" && s != "EOF");
+        kmeans_clusters.push_back(vec);
+        vec.clear();
+        read >> s;
+    } while (s != "EOF");
+
+    return kmeans_clusters;
+}
+
 vector<double> &GetBestAtOneGeneration()
 {
     static vector<double> length(GetGASteps(), 0);
     return length;
 }
 
-static vector<int> &GetLKImprovedPath()
+vector<int> &GetLKImprovedPath()
 {
     static vector<int> improved_path;
     return improved_path;
@@ -179,7 +206,7 @@ int &GetGASteps()
     return ga_steps;
 }
 
-static void PrintMtspResult(vector<vector<int>> v, double length)
+void PrintMtspResult(vector<vector<int>> v, double length)
 {
     cout << "num of salesman: " << v.size() << "\n";
     cout << "path length: " << length << "\n";
@@ -192,7 +219,7 @@ static void PrintMtspResult(vector<vector<int>> v, double length)
     cout << endl;
 }
 
-static void OutputBestInGeneration(int num_salesmans)
+void OutputBestInGeneration(int num_salesmans)
 {
     stringstream filename_stream;
     string output_filename;
@@ -213,7 +240,7 @@ static void OutputBestInGeneration(int num_salesmans)
     output.close();
 }
 
-static void OutputBestSolution(vector<vector<int>> v, double length, int num_salesman)
+void OutputBestSolution(vector<vector<int>> v, double length, int num_salesman)
 {
     stringstream filename_stream;
     string output_filename;
@@ -236,7 +263,30 @@ static void OutputBestSolution(vector<vector<int>> v, double length, int num_sal
     output.close();
 }
 
-static void InitializeGroup(CityNetwork &network, vector<TspChromosome> &group,
+void OutputInitSolution(vector<vector<int>> v, double length, int num_salesman)
+{
+    stringstream filename_stream;
+    string output_filename;
+    filename_stream << GetDataPath() << "mtsp_init_path_kmeansGA";
+    filename_stream << "_" << num_salesman;
+    filename_stream << "_" << GetDataFile();
+    filename_stream >> output_filename;
+    ofstream output;
+    output.open(output_filename);
+
+    output << "NUM_SALESMAN: " << v.size() << "\n";
+    output << "PATH_LENGTH: " << length << "\n";
+    for (auto i = v.begin(); i != v.end(); i++)
+    {
+        for (auto j = (*i).begin(); j != (*i).end(); j++)
+            output << *j << " ";
+        output << *((*i).begin()) << " ";
+        output << "\n";
+    }
+    output.close();
+}
+
+void InitializeGroup(CityNetwork &network, vector<TspChromosome> &group,
                             vector<vector<int>>::iterator base_path_iter)
 {
     int path_sequence_length = (*base_path_iter).size();
@@ -275,7 +325,7 @@ static void InitializeGroup(CityNetwork &network, vector<TspChromosome> &group,
     }
 }
 
-static vector<int>::iterator FindGreedy(CityNetwork &network,
+vector<int>::iterator FindGreedy(CityNetwork &network,
                                         vector<int>::iterator begin,
                                         vector<int>::iterator end, int start_point)
 {
@@ -293,7 +343,7 @@ static vector<int>::iterator FindGreedy(CityNetwork &network,
     return greedy_iterator;
 }
 
-static double CalculatePathLength(CityNetwork &network, vector<int> path)
+double CalculatePathLength(CityNetwork &network, vector<int> path)
 {
     double path_length = 0;
 	if (path.size() == 1)
@@ -305,44 +355,7 @@ static double CalculatePathLength(CityNetwork &network, vector<int> path)
     return path_length;
 }
 
-static vector<vector<int>> ReadKMeansCluster()
-{
-    ifstream read;
-    read.open(GetDataPath() + "clusters_" + GetDataFile());
-    if (!read.is_open())
-    {
-        cout << "fail to open file." << endl;
-    }
-    string s;
-    stringstream stream;
-    int i;
-    vector<int> vec;
-    vector<vector<int>> kmeans_clusters;
-
-    do
-    {
-        read >> s;
-    } while (s != "Cluster:");
-    read >> s;
-    do
-    {
-        do
-        {
-            stream.clear();
-            stream << s;
-            stream >> i;
-            vec.push_back(i);
-            read >> s;
-        } while (s != "Cluster:" && s != "EOF");
-        kmeans_clusters.push_back(vec);
-        vec.clear();
-        read >> s;
-    } while (s != "EOF");
-
-    return kmeans_clusters;
-}
-
-static vector<int> DPXCrossover(CityNetwork &network, vector<int> father, vector<int> mother)
+vector<int> DPXCrossover(CityNetwork &network, vector<int> father, vector<int> mother)
 {
     vector<int> son;
 	if (father.size() < 4)
@@ -485,7 +498,7 @@ static vector<int> DPXCrossover(CityNetwork &network, vector<int> father, vector
 }
 
 // Recursion LK from one paper, not tested
-static bool LKImprovePath(CityNetwork &network, vector<int> path, int depth)
+bool LKImprovePath(CityNetwork &network, vector<int> path, int depth)
 {
     if (path.size() < 4)
         return false;
@@ -549,7 +562,7 @@ static bool LKImprovePath(CityNetwork &network, vector<int> path, int depth)
     }
 }
 
-static void LocalSearchPath(CityNetwork &network, vector<int> &path)
+void LocalSearchPath(CityNetwork &network, vector<int> &path)
 {
     if (path.size() < 4)
         return;

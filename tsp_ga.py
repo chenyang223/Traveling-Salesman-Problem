@@ -11,13 +11,13 @@ import os
 
 class TspGa(object):
     def __init__(self):
-        self.data_path = './nrw1379/'
-        self.data_file = 'nrw1379.tsp'
+        self.data_path = './data/'
+        self.data_file = 'eil51.tsp'
         self.figure_path = './Figure/'
 
     def main(self):
-        mode = 0
-        num_city = 1500
+        mode = 1
+        num_city = 52
         # 0 for read data from files, 1 for generate random data
         # plot_path_and_L_n_relation(data_file, data_path, mode, num_city)
 
@@ -25,14 +25,14 @@ class TspGa(object):
             city_coord = self.read_coordinates()
         elif mode == 1:
             city_coord = self.generate_city(num_city, ratio=0.05)
-            # self.write_city_coord(city_coord)
+            self.write_city_coord(city_coord)
         elif mode == 2:
             # self.generate_city_example()
             pass
         else:
             print('Wrong mode')
 
-        num_salesman_array = np.arange(1, 20, 1)
+        num_salesman_array = np.arange(1, 5, 1)
         # num_salesman_array[0] += 1
         # num_salesman_array = np.array([6, 10])
 
@@ -41,7 +41,7 @@ class TspGa(object):
         # num_salesman_array = np.array([1])
         # self.plot_path_single_color(city_coord, 12)
 
-        self.plot_real_case()
+        # self.plot_real_case()
         # self.plot_optimized_num_salesman_cs_rdgraph(num_salesman_array)
         # self.plot_optimized_num_salesman_ct_rdgraph(num_salesman_array)
         # self.plot_optimized_num_salesman_3d_rdgraph(num_salesman_array)
@@ -53,11 +53,11 @@ class TspGa(object):
         # self.plot_cost_num_salesman_ct(num_salesman_array)
 
         for num_salesman in num_salesman_array:
-            if num_salesman == 1:
-                self.generate_kmeans_cluster(city_coord, num_salesman)
-            else:
-                self.generate_lattice_cluster_2row(city_coord, num_salesman)
-            os.system('./main' +
+            # if num_salesman == 1:
+            self.generate_kmeans_cluster(city_coord, num_salesman)
+            # else:
+            #     self.generate_lattice_cluster_2row(city_coord, num_salesman)
+            os.system('./cmake-build-debug/main ' +
                       self.data_path + ' ' + self.data_file)
 
         # np.savetxt(self.data_path + 'length.txt', np.array(path_length_list))
