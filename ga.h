@@ -28,14 +28,14 @@
     CityNetwork ConstructNetwork();
     void PrintNetwork(CityNetwork n);
 
-    //tsp.cpp
-    void TspGA();
+    // //tsp.cpp
+    // void TspGA();
 
-    //mtsp.cpp
-    void MtspMOGA();
+    // //mtsp.cpp
+    // void MtspMOGA();
 
-    //mtsp_kmeans_moga.cpp
-    void MtspKmeansMOGA();
+    // //mtsp_kmeans_moga.cpp
+    // void MtspKmeansMOGA();
 
     // tsp_kmeans_ga.cpp
     void MtspKmeansGA();
