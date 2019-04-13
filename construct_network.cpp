@@ -1,12 +1,22 @@
-#include "ga.h"
+#include "utils.h"
+#include "construct_network.h"
+#include <iostream>
+#include <cstdlib>
+#include <ctime>
+#include <algorithm>
+#include <vector>
+#include <cmath>
+#include <random>
+#include <chrono>
+#include <iterator>
+#include <iomanip>
+#include <sstream>
+#include <fstream>
+#include <cfloat>
 
+using namespace std;
 // For function: CreateNetworkRandom
 const int kNumCity = 10;
-
-void PrintNetwork(CityNetwork n);
-static void CreateNetworkReadData(CityNetwork &network);
-static void CreateNetworkRandom(CityNetwork &network);
-void ReadKMeansCluster();
 
 CityNetwork ConstructNetwork()
 {
@@ -43,7 +53,7 @@ void PrintNetwork(CityNetwork n)
     cout << endl;
 }
 
-static void CreateNetworkReadData(CityNetwork &network)
+void CreateNetworkReadData(CityNetwork &network)
 {
     ifstream read_in;
     read_in.open(GetDataPath() + GetDataFile());
@@ -107,7 +117,7 @@ static void CreateNetworkReadData(CityNetwork &network)
         }
 }
 
-static void CreateNetworkRandom(CityNetwork &network)
+void CreateNetworkRandom(CityNetwork &network)
 {
     network.num_nodes = kNumCity;
     network.nodes_coordinate.resize(kNumCity);

@@ -1,5 +1,8 @@
-#include "ga.h"
+#include "mtsp_kmeans_ga.h"
+#include "utils.h"
+#include <iostream>
 
+using namespace std;
 int main(int argc, char **argv)
 {
     if (argc != 3)
@@ -14,24 +17,12 @@ int main(int argc, char **argv)
 
     GetDataPath() = argv[1];
     GetDataFile() = argv[2];
+
     MtspKmeansGA();
 
     time_t t_end = clock();
     double running_time = double(t_end - t_begin) / CLOCKS_PER_SEC;
     cout << "\n"
          << "The running time is:  " << running_time << endl;
-    //system("pause");
     return 0;
-}
-
-string &GetDataFile()
-{
-    static string data_file;
-    return data_file;
-}
-
-string &GetDataPath()
-{
-    static string data_path;
-    return data_path;
 }

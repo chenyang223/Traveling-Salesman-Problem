@@ -1,62 +1,51 @@
 //no depot mtsp
 
-#include "ga.h"
-
-typedef struct
-{
-    double length;
-    vector<int> path;
-} TspChromosome;
-
-const int kBaseNumInGroup = 2;
-const double kDoubleLargeNumber = DBL_MAX;
-const int kBaseGaSteps = 18;
-
-static vector<vector<int>> ReadKMeansCluster();
-static void InitializeGroup(CityNetwork &network, vector<TspChromosome> &group,
-                            vector<vector<int>>::iterator base_path);
-static void PrintMtspResult(vector<vector<int>> v, double length);
-static void OutputBestSolution(vector<vector<int>> v, double length, int num_salesman);
-static void OutputBestInGeneration(int num_salesman);
-static vector<int>::iterator FindGreedy(CityNetwork &network,
-                                        vector<int>::iterator begin,
-                                        vector<int>::iterator end, int start_point);
-static void GAMain(CityNetwork &network, vector<TspChromosome> &group);
-static bool LKImprovePath(CityNetwork &network, vector<int> path, int depth);
-static void LocalSearchPath(CityNetwork &network, vector<int> &path);
-static double CalculatePathLength(CityNetwork &network, vector<int> path);
-static vector<int> DPXCrossover(CityNetwork &network, vector<int> father, vector<int> mother);
-static vector<int> &GetLKImprovedPath();
-vector<double> &GetBestAtOneGeneration();
-int &GetNumInGroup();
-int &GetGASteps();
+#include "mtsp_kmeans_ga.h"
+#include "utils.h"
+#include <iostream>
+#include <cstdlib>
+#include <ctime>
+#include <algorithm>
+#include <vector>
+#include <cmath>
+#include <random>
+#include <chrono>
+#include <iterator>
+#include <iomanip>
+#include <sstream>
+#include <fstream>
+#include <cfloat>
 
 void MtspKmeansGA()
 {
     CityNetwork network;
     network = ConstructNetwork();
-    //PrintNetwork(network);
+//    PrintNetwork(network);
     vector<vector<int>> kmeans_cluster;
     kmeans_cluster = ReadKMeansCluster();
     int num_salesman = kmeans_cluster.size();
     GetNumInGroup() = kBaseNumInGroup * num_salesman;
     GetGASteps() = kBaseGaSteps * num_salesman;
     vector<vector<int>> path_result;
+    vector<vector<int>> init_path_result;
     double total_path_length = 0.0;
+    double init_total_path_length = 0.0;
 
     time_t time1 = clock();
     time_t time2 = clock();
     double init_time = 0;
     double ga_time = 0;
 
-    for (vector<vector<int>>::iterator i = kmeans_cluster.begin();
+    for (auto i = kmeans_cluster.begin();
          i != kmeans_cluster.end(); i++)
     {
         cout << "current salesman : " << i - kmeans_cluster.begin() + 1
              << "/" << num_salesman << endl;
         vector<TspChromosome> group(GetNumInGroup());
         InitializeGroup(network, group, i);
-        for (vector<TspChromosome>::iterator j = group.begin();
+        init_path_result.push_back(group.begin()->path);
+        init_total_path_length += group.begin()->length;
+        for (auto j = group.begin();
              j != group.end(); j++)
         {
             LocalSearchPath(network, j->path);
@@ -80,10 +69,11 @@ void MtspKmeansGA()
 
     PrintMtspResult(path_result, total_path_length);
     OutputBestSolution(path_result, total_path_length, num_salesman);
-    OutputBestInGeneration(num_salesman);
+    OutputInitSolution(init_path_result, init_total_path_length, num_salesman);
+//    OutputBestInGeneration(num_salesman);
 }
 
-static void GAMain(CityNetwork &network, vector<TspChromosome> &group)
+void GAMain(CityNetwork &network, vector<TspChromosome> &group)
 {
     struct MySort
     {
@@ -122,7 +112,7 @@ static void GAMain(CityNetwork &network, vector<TspChromosome> &group)
         double old_best_path_length = group.begin()->length;
 
         int insert_or_not = 0;
-        for (vector<TspChromosome>::iterator j = group.begin(); j != group.end(); j++)
+        for (auto j = group.begin(); j != group.end(); j++)
         {
             if (son.length > j->length)
                 continue;
@@ -155,157 +145,7 @@ static void GAMain(CityNetwork &network, vector<TspChromosome> &group)
     cout << "local search time : " << local_search_time << "\n";
 }
 
-vector<double> &GetBestAtOneGeneration()
-{
-    static vector<double> length(GetGASteps(), 0);
-    return length;
-}
-
-static vector<int> &GetLKImprovedPath()
-{
-    static vector<int> improved_path;
-    return improved_path;
-}
-
-int &GetNumInGroup()
-{
-    static int num_in_group;
-    return num_in_group;
-}
-
-int &GetGASteps()
-{
-    static int ga_steps;
-    return ga_steps;
-}
-
-static void PrintMtspResult(vector<vector<int>> v, double length)
-{
-    cout << "num of salesman: " << v.size() << "\n";
-    cout << "path length: " << length << "\n";
-    for (vector<vector<int>>::iterator i = v.begin(); i != v.end(); i++)
-    {
-        for (vector<int>::iterator j = (*i).begin(); j != (*i).end(); j++)
-            cout << *j << " ";
-        cout << "\n";
-    }
-    cout << endl;
-}
-
-static void OutputBestInGeneration(int num_salesmans)
-{
-    stringstream filename_stream;
-    string output_filename;
-    filename_stream << GetDataPath() << "length-generation_";
-    filename_stream << num_salesmans;
-    filename_stream << "_" << GetDataFile();
-    filename_stream >> output_filename;
-    ofstream output;
-    output.open(output_filename);
-
-    for (vector<double>::iterator i = GetBestAtOneGeneration().begin();
-         i != GetBestAtOneGeneration().end(); i++)
-    {
-        if (*i == 0)
-            break;
-        output << *i << " ";
-    }
-    output.close();
-}
-
-static void OutputBestSolution(vector<vector<int>> v, double length, int num_salesman)
-{
-    stringstream filename_stream;
-    string output_filename;
-    filename_stream << GetDataPath() << "mtsp_path_kmeansGA";
-    filename_stream << "_" << num_salesman;
-    filename_stream << "_" << GetDataFile();
-    filename_stream >> output_filename;
-    ofstream output;
-    output.open(output_filename);
-
-    output << "NUM_SALESMAN: " << v.size() << "\n";
-    output << "PATH_LENGTH: " << length << "\n";
-    for (vector<vector<int>>::iterator i = v.begin(); i != v.end(); i++)
-    {
-        for (vector<int>::iterator j = (*i).begin(); j != (*i).end(); j++)
-            output << *j << " ";
-        output << *((*i).begin()) << " ";
-        output << "\n";
-    }
-    output.close();
-}
-
-static void InitializeGroup(CityNetwork &network, vector<TspChromosome> &group,
-                            vector<vector<int>>::iterator base_path_iter)
-{
-    int path_sequence_length = (*base_path_iter).size();
-    for (vector<TspChromosome>::iterator i = group.begin();
-         i != group.end(); i++)
-    {
-        vector<int> base_path = *base_path_iter;
-		if (path_sequence_length < 4)
-		{
-            i->path.assign(base_path.begin(), base_path.end());
-            i->length = CalculatePathLength(network, base_path);
-			continue;
-		}
-        double length = 0;
-        int start_point;
-        vector<int>::iterator path_iterator = base_path.begin();
-        vector<int>::iterator greedy_iterator;
-
-        start_point = rand() % path_sequence_length;
-        swap((*path_iterator), base_path.at(start_point));
-        path_iterator++;
-        while (path_iterator != base_path.end())
-        {
-            greedy_iterator = FindGreedy(network, path_iterator, base_path.end(),
-                                         *(path_iterator - 1));
-            swap(*greedy_iterator, *path_iterator);
-            length += network.adjacent_matrix
-                           [*(path_iterator - 1)][*path_iterator];
-            path_iterator++;
-        }
-        length += network.adjacent_matrix
-                       [*(path_iterator - 1)][start_point];
-        i->path.assign(base_path.begin(), base_path.end());
-        reverse(i->path.begin(), i->path.end());
-        i->length = length;
-    }
-}
-
-static vector<int>::iterator FindGreedy(CityNetwork &network,
-                                        vector<int>::iterator begin,
-                                        vector<int>::iterator end, int start_point)
-{
-    vector<int>::iterator greedy_iterator = begin;
-    double min_path_length = network.adjacent_matrix[start_point][*begin];
-    for (vector<int>::iterator i = begin; i != end; i++)
-    {
-        double path_len = network.adjacent_matrix[start_point][*i];
-        if (path_len < min_path_length)
-        {
-            min_path_length = path_len;
-            greedy_iterator = i;
-        }
-    }
-    return greedy_iterator;
-}
-
-static double CalculatePathLength(CityNetwork &network, vector<int> path)
-{
-    double path_length = 0;
-	if (path.size() == 1)
-		return path_length;
-    path_length += network.adjacent_matrix[*(path.begin())]
-                                          [*(path.end() - 1)];
-    for (vector<int>::iterator i = path.begin(); i != path.end() - 1; i++)
-        path_length += network.adjacent_matrix[*i][*(i + 1)];
-    return path_length;
-}
-
-static vector<vector<int>> ReadKMeansCluster()
+vector<vector<int>> ReadKMeansCluster()
 {
     ifstream read;
     read.open(GetDataPath() + "clusters_" + GetDataFile());
@@ -342,7 +182,180 @@ static vector<vector<int>> ReadKMeansCluster()
     return kmeans_clusters;
 }
 
-static vector<int> DPXCrossover(CityNetwork &network, vector<int> father, vector<int> mother)
+vector<double> &GetBestAtOneGeneration()
+{
+    static vector<double> length(GetGASteps(), 0);
+    return length;
+}
+
+vector<int> &GetLKImprovedPath()
+{
+    static vector<int> improved_path;
+    return improved_path;
+}
+
+int &GetNumInGroup()
+{
+    static int num_in_group;
+    return num_in_group;
+}
+
+int &GetGASteps()
+{
+    static int ga_steps;
+    return ga_steps;
+}
+
+void PrintMtspResult(vector<vector<int>> v, double length)
+{
+    cout << "num of salesman: " << v.size() << "\n";
+    cout << "path length: " << length << "\n";
+    for (auto i = v.begin(); i != v.end(); i++)
+    {
+        for (auto j = (*i).begin(); j != (*i).end(); j++)
+            cout << *j << " ";
+        cout << "\n";
+    }
+    cout << endl;
+}
+
+void OutputBestInGeneration(int num_salesmans)
+{
+    stringstream filename_stream;
+    string output_filename;
+    filename_stream << GetDataPath() << "length-generation_";
+    filename_stream << num_salesmans;
+    filename_stream << "_" << GetDataFile();
+    filename_stream >> output_filename;
+    ofstream output;
+    output.open(output_filename);
+
+    for (auto i = GetBestAtOneGeneration().begin();
+         i != GetBestAtOneGeneration().end(); i++)
+    {
+        if (*i == 0)
+            break;
+        output << *i << " ";
+    }
+    output.close();
+}
+
+void OutputBestSolution(vector<vector<int>> v, double length, int num_salesman)
+{
+    stringstream filename_stream;
+    string output_filename;
+    filename_stream << GetDataPath() << "mtsp_path_kmeansGA";
+    filename_stream << "_" << num_salesman;
+    filename_stream << "_" << GetDataFile();
+    filename_stream >> output_filename;
+    ofstream output;
+    output.open(output_filename);
+
+    output << "NUM_SALESMAN: " << v.size() << "\n";
+    output << "PATH_LENGTH: " << length << "\n";
+    for (auto i = v.begin(); i != v.end(); i++)
+    {
+        for (auto j = (*i).begin(); j != (*i).end(); j++)
+            output << *j << " ";
+        output << *((*i).begin()) << " ";
+        output << "\n";
+    }
+    output.close();
+}
+
+void OutputInitSolution(vector<vector<int>> v, double length, int num_salesman)
+{
+    stringstream filename_stream;
+    string output_filename;
+    filename_stream << GetDataPath() << "mtsp_init_path_kmeansGA";
+    filename_stream << "_" << num_salesman;
+    filename_stream << "_" << GetDataFile();
+    filename_stream >> output_filename;
+    ofstream output;
+    output.open(output_filename);
+
+    output << "NUM_SALESMAN: " << v.size() << "\n";
+    output << "PATH_LENGTH: " << length << "\n";
+    for (auto i = v.begin(); i != v.end(); i++)
+    {
+        for (auto j = (*i).begin(); j != (*i).end(); j++)
+            output << *j << " ";
+        output << *((*i).begin()) << " ";
+        output << "\n";
+    }
+    output.close();
+}
+
+void InitializeGroup(CityNetwork &network, vector<TspChromosome> &group,
+                            vector<vector<int>>::iterator base_path_iter)
+{
+    int path_sequence_length = (*base_path_iter).size();
+    for (auto i = group.begin();
+         i != group.end(); i++)
+    {
+        vector<int> base_path = *base_path_iter;
+		if (path_sequence_length < 4)
+		{
+            i->path.assign(base_path.begin(), base_path.end());
+            i->length = CalculatePathLength(network, base_path);
+			continue;
+		}
+        double length = 0;
+        int start_point;
+        auto path_iterator = base_path.begin();
+        vector<int>::iterator greedy_iterator;
+
+        start_point = rand() % path_sequence_length;
+        swap((*path_iterator), base_path.at(start_point));
+        path_iterator++;
+        while (path_iterator != base_path.end())
+        {
+            greedy_iterator = FindGreedy(network, path_iterator, base_path.end(),
+                                         *(path_iterator - 1));
+            swap(*greedy_iterator, *path_iterator);
+            length += network.adjacent_matrix
+                           [*(path_iterator - 1)][*path_iterator];
+            path_iterator++;
+        }
+        length += network.adjacent_matrix
+                       [*(path_iterator - 1)][start_point];
+        i->path.assign(base_path.begin(), base_path.end());
+        reverse(i->path.begin(), i->path.end());
+        i->length = length;
+    }
+}
+
+vector<int>::iterator FindGreedy(CityNetwork &network,
+                                        vector<int>::iterator begin,
+                                        vector<int>::iterator end, int start_point)
+{
+    auto greedy_iterator = begin;
+    double min_path_length = network.adjacent_matrix[start_point][*begin];
+    for (auto i = begin; i != end; i++)
+    {
+        double path_len = network.adjacent_matrix[start_point][*i];
+        if (path_len < min_path_length)
+        {
+            min_path_length = path_len;
+            greedy_iterator = i;
+        }
+    }
+    return greedy_iterator;
+}
+
+double CalculatePathLength(CityNetwork &network, vector<int> path)
+{
+    double path_length = 0;
+	if (path.size() == 1)
+		return path_length;
+    path_length += network.adjacent_matrix[*(path.begin())]
+                                          [*(path.end() - 1)];
+    for (auto i = path.begin(); i != path.end() - 1; i++)
+        path_length += network.adjacent_matrix[*i][*(i + 1)];
+    return path_length;
+}
+
+vector<int> DPXCrossover(CityNetwork &network, vector<int> father, vector<int> mother)
 {
     vector<int> son;
 	if (father.size() < 4)
@@ -357,7 +370,7 @@ static vector<int> DPXCrossover(CityNetwork &network, vector<int> father, vector
     int link_vector_size = *max_element(mother.begin(), mother.end()) + 1;
     vector<int> mother_back_vector(link_vector_size);
     vector<int> mother_forward_vector(link_vector_size);
-    for (vector<int>::iterator i = mother.begin(); i != mother.end(); i++)
+    for (auto i = mother.begin(); i != mother.end(); i++)
     {
         if (i == mother.end() - 1)
         {
@@ -378,7 +391,7 @@ static vector<int> DPXCrossover(CityNetwork &network, vector<int> father, vector
 
     //Find all cut points in father
     vector<int> cut_point;
-    for (vector<int>::iterator i = father.begin(); i != father.end(); i++)
+    for (auto i = father.begin(); i != father.end(); i++)
     {
         vector<int>::iterator i_forward;
         if (i == father.end() - 1)
@@ -404,7 +417,7 @@ static vector<int> DPXCrossover(CityNetwork &network, vector<int> father, vector
                           father.begin() + 1 + cut_point.at(num_fragments - 1),
                           father.end());
     fragments.push_back(local_fragment);
-    for (vector<int>::iterator i = cut_point.begin() + 1;
+    for (auto i = cut_point.begin() + 1;
          i != cut_point.end(); i++)
     {
         local_fragment.assign(father.begin() + *(i - 1) + 1,
@@ -415,7 +428,7 @@ static vector<int> DPXCrossover(CityNetwork &network, vector<int> father, vector
     // Collect the start and end point of all fragments
     vector<int> start_point_vector;
     vector<int> end_point_vector;
-    for (vector<vector<int>>::iterator i = fragments.begin();
+    for (auto i = fragments.begin();
          i != fragments.end(); i++)
     {
         start_point_vector.push_back(*((*i).begin()));
@@ -432,7 +445,7 @@ static vector<int> DPXCrossover(CityNetwork &network, vector<int> father, vector
     {
         int best_start;
         double best_length_start = kDoubleLargeNumber;
-        for (vector<int>::iterator j = start_point_vector.begin();
+        for (auto j = start_point_vector.begin();
              j != start_point_vector.end(); j++)
         {
             if (*j == -1)
@@ -446,7 +459,7 @@ static vector<int> DPXCrossover(CityNetwork &network, vector<int> father, vector
         }
         int best_end;
         double best_length_end = kDoubleLargeNumber;
-        for (vector<int>::iterator j = end_point_vector.begin();
+        for (auto j = end_point_vector.begin();
              j != end_point_vector.end(); j++)
         {
             if (*j == -1)
@@ -460,7 +473,7 @@ static vector<int> DPXCrossover(CityNetwork &network, vector<int> father, vector
         }
         if (best_length_start < best_length_end)
         {
-            vector<int>::iterator iter = find(start_point_vector.begin(),
+            auto iter = find(start_point_vector.begin(),
                                               start_point_vector.end(), best_start);
             int index = iter - start_point_vector.begin();
             start_point_vector.at(index) = -1;
@@ -470,7 +483,7 @@ static vector<int> DPXCrossover(CityNetwork &network, vector<int> father, vector
         }
         else
         {
-            vector<int>::iterator iter = find(end_point_vector.begin(),
+            auto iter = find(end_point_vector.begin(),
                                               end_point_vector.end(), best_end);
             int index = iter - end_point_vector.begin();
             start_point_vector.at(index) = -1;
@@ -485,14 +498,14 @@ static vector<int> DPXCrossover(CityNetwork &network, vector<int> father, vector
 }
 
 // Recursion LK from one paper, not tested
-static bool LKImprovePath(CityNetwork &network, vector<int> path, int depth)
+bool LKImprovePath(CityNetwork &network, vector<int> path, int depth)
 {
     if (path.size() < 4)
         return false;
     int depth_limit = 2;
     if (depth < depth_limit)
     {
-        for (vector<int>::iterator i = path.begin() + 2; i != path.end() - 1; i++)
+        for (auto i = path.begin() + 2; i != path.end() - 1; i++)
         {
             double delta_length = network.adjacent_matrix[*(i - 1)][*(path.end() - 1)] -
                                   network.adjacent_matrix[*(i - 1)][*i];
@@ -516,10 +529,10 @@ static bool LKImprovePath(CityNetwork &network, vector<int> path, int depth)
     }
     else
     {
-        vector<int>::iterator best_iter = path.begin() + 1;
+        auto best_iter = path.begin() + 1;
         double best_delta_l = network.adjacent_matrix[*(best_iter - 1)][*(path.end() - 1)] -
                               network.adjacent_matrix[*(best_iter - 1)][*best_iter];
-        for (vector<int>::iterator i = path.begin() + 1; i != path.end() - 1; i++)
+        for (auto i = path.begin() + 1; i != path.end() - 1; i++)
         {
             double current_delta_l = network.adjacent_matrix[*(i - 1)][*(path.end() - 1)] -
                                      network.adjacent_matrix[*(i - 1)][*i];
@@ -549,11 +562,11 @@ static bool LKImprovePath(CityNetwork &network, vector<int> path, int depth)
     }
 }
 
-static void LocalSearchPath(CityNetwork &network, vector<int> &path)
+void LocalSearchPath(CityNetwork &network, vector<int> &path)
 {
     if (path.size() < 4)
         return;
-    for (vector<int>::iterator j = path.begin() + 1; j != path.end() - 2; j++)
+    for (auto j = path.begin() + 1; j != path.end() - 2; j++)
     {
         double delta_l = network.adjacent_matrix[*j][*(path.end() - 1)] +
                          network.adjacent_matrix[*(path.begin())][*(j + 1)] -
@@ -562,9 +575,9 @@ static void LocalSearchPath(CityNetwork &network, vector<int> &path)
         if (delta_l < 0)
             reverse(path.begin(), j + 1);
     }
-    for (vector<int>::iterator i = path.begin() + 1; i != path.end() - 2; i++)
+    for (auto i = path.begin() + 1; i != path.end() - 2; i++)
     {
-        for (vector<int>::iterator j = i + 1; j != path.end() - 1; j++)
+        for (auto j = i + 1; j != path.end() - 1; j++)
         {
             double delta_l = network.adjacent_matrix[*(i - 1)][*j] +
                              network.adjacent_matrix[*i][*(j + 1)] -
