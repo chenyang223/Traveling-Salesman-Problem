@@ -1,6 +1,7 @@
 #include "mtsp_kmeans_ga.h"
 #include "utils.h"
 #include <iostream>
+#include <ctime>
 
 using namespace std;
 int main(int argc, char **argv)
